@@ -1,0 +1,31 @@
+criteria:
+  max_price: 5000        # EUR
+  fuel: DIESEL
+  transmission: HANDMATIG
+
+delay_between_requests: 2  # seconds
+
+targets:
+  - make: nissan
+    model: navara
+    slug: nissan/navara
+
+  - make: mitsubishi
+    model: l200
+    slug: mitsubishi/l-200
+
+  - make: nissan
+    model: patrol
+    slug: nissan/patrol
+
+  - make: mitsubishi
+    model: pajero
+    slug: mitsubishi/pajero
+
+  - make: kia
+    model: sorento
+    slug: kia/sorento
+
+  - make: hyundai
+    model: terracan
+    slug: hyundai/terracan

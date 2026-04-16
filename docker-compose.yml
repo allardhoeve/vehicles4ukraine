@@ -1,0 +1,25 @@
+# Local dev convenience. Production runs via allard-stack/stack/docker-compose.yml
+services:
+  web:
+    build: .
+    command: uv run gunicorn web:app --bind 0.0.0.0:5001 --workers 2
+    ports:
+      - "5001:5001"
+    volumes:
+      - v4u-data:/data
+    environment:
+      - V4U_DB_PATH=/data/vehicles.db
+    restart: unless-stopped
+
+  search:
+    build: .
+    command: uv run python search.py
+    volumes:
+      - v4u-data:/data
+    environment:
+      - V4U_DB_PATH=/data/vehicles.db
+    profiles:
+      - search
+
+volumes:
+  v4u-data:

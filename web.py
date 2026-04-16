@@ -7,7 +7,10 @@ import sqlite3
 
 from flask import Flask, g, jsonify, redirect, render_template_string, request, url_for
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db")
+DB_PATH = os.environ.get(
+    "V4U_DB_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db"),
+)
 
 app = Flask(__name__)
 
@@ -205,6 +208,16 @@ def unreject():
     db.execute("UPDATE vehicles SET rejected = 0 WHERE source_url = ?", (source_url,))
     db.commit()
     return redirect(request.referrer or url_for("index"))
+
+
+def run_production():
+    """Entry point for production (gunicorn)."""
+    import subprocess
+    subprocess.run([
+        "gunicorn", "web:app",
+        "--bind", "0.0.0.0:5001",
+        "--workers", "2",
+    ])
 
 
 if __name__ == "__main__":

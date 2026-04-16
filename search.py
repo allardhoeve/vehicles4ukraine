@@ -18,23 +18,25 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import yaml
+
 
 # --- Configuration ---
 
-TARGETS = [
-    ("nissan", "navara"),
-    ("mitsubishi", "l-200"),
-    ("nissan", "patrol"),
-    ("mitsubishi", "pajero"),
-]
+CONFIG_PATH = os.environ.get(
+    "V4U_CONFIG_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml"),
+)
 
-MAX_PRICE = 5000  # EUR
-FUEL_TYPE = "DIESEL"
-TRANSMISSION = "HANDMATIG"
+DB_PATH = os.environ.get(
+    "V4U_DB_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db"),
+)
 
-DELAY_BETWEEN_REQUESTS = 2  # seconds
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db")
+def load_config() -> dict:
+    with open(CONFIG_PATH) as f:
+        return yaml.safe_load(f)
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -267,12 +269,15 @@ def is_rejected(conn: sqlite3.Connection, source_url: str) -> bool:
 
 # --- Filtering ---
 
-def matches_criteria(v: Vehicle) -> bool:
-    if v.price is not None and v.price > MAX_PRICE:
+def matches_criteria(v: Vehicle, criteria: dict) -> bool:
+    max_price = criteria.get("max_price")
+    if max_price and v.price is not None and v.price > max_price:
         return False
-    if FUEL_TYPE and v.fuel != FUEL_TYPE:
+    fuel = criteria.get("fuel")
+    if fuel and v.fuel != fuel:
         return False
-    if TRANSMISSION and v.transmission != TRANSMISSION:
+    transmission = criteria.get("transmission")
+    if transmission and v.transmission != transmission:
         return False
     return True
 
@@ -280,19 +285,25 @@ def matches_criteria(v: Vehicle) -> bool:
 # --- Main ---
 
 def main():
+    config = load_config()
+    criteria = config.get("criteria", {})
+    targets = config.get("targets", [])
+    delay = config.get("delay_between_requests", 2)
+
     conn = init_db(DB_PATH)
     all_matches = []
 
-    for i, (make, model) in enumerate(TARGETS):
+    for i, target in enumerate(targets):
         if i > 0:
-            time.sleep(DELAY_BETWEEN_REQUESTS)
+            time.sleep(delay)
 
-        url = f"https://www.gaspedaal.nl/{make}/{model}"
-        print(f"[{i+1}/{len(TARGETS)}] {make}/{model} ... ", end="", flush=True)
+        slug = target["slug"]
+        url = f"https://www.gaspedaal.nl/{slug}"
+        print(f"[{i+1}/{len(targets)}] {slug} ... ", end="", flush=True)
 
         html = fetch(url)  # crashes on non-200
         vehicles = parse_vehicles(html)
-        matches = [v for v in vehicles if matches_criteria(v)]
+        matches = [v for v in vehicles if matches_criteria(v, criteria)]
 
         print(f"{len(vehicles)} found, {len(matches)} match criteria")
         all_matches.extend(matches)

@@ -1,9 +1,15 @@
 [project]
 name = "vehicles4ukraine"
 version = "0.1.0"
-description = "Add your description here"
+description = "Scout Dutch car platforms for vehicles to export to Ukraine"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "flask>=3.1.3",
+    "gunicorn>=23.0.0",
+    "pyyaml>=6.0.3",
 ]
+
+[project.scripts]
+v4u-search = "search:main"
+v4u-web = "web:run_production"
