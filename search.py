@@ -81,11 +81,49 @@ class RateLimitError(Exception):
         )
 
 
-def fetch(url: str) -> str:
+_opener = None
+
+
+def _get_opener(proxy: str | None) -> urllib.request.OpenerDirector:
+    global _opener
+    if _opener is not None:
+        return _opener
+
+    if proxy:
+        import socks
+        from sockshandler import SocksiPyHandler
+        from urllib.parse import urlparse
+
+        parsed = urlparse(proxy)
+        scheme = parsed.scheme.lower()
+        socks_type = {
+            "socks5": socks.SOCKS5,
+            "socks4": socks.SOCKS4,
+            "http": socks.HTTP,
+        }.get(scheme)
+
+        if socks_type is None:
+            raise ValueError(f"Unsupported proxy scheme: {scheme}")
+
+        handler = SocksiPyHandler(
+            socks_type,
+            parsed.hostname,
+            parsed.port or 1080,
+        )
+        _opener = urllib.request.build_opener(handler)
+        print(f"  Using proxy: {proxy}")
+    else:
+        _opener = urllib.request.build_opener()
+
+    return _opener
+
+
+def fetch(url: str, proxy: str | None = None) -> str:
     """Fetch a URL. Crash with details on non-200 responses."""
+    opener = _get_opener(proxy)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req) as resp:
+        with opener.open(req) as resp:
             return resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
@@ -289,6 +327,7 @@ def main():
     criteria = config.get("criteria", {})
     targets = config.get("targets", [])
     delay = config.get("delay_between_requests", 2)
+    proxy = config.get("proxy")
 
     conn = init_db(DB_PATH)
     all_matches = []
@@ -301,7 +340,7 @@ def main():
         url = f"https://www.gaspedaal.nl/{slug}"
         print(f"[{i+1}/{len(targets)}] {slug} ... ", end="", flush=True)
 
-        html = fetch(url)  # crashes on non-200
+        html = fetch(url, proxy=proxy)  # crashes on non-200
         vehicles = parse_vehicles(html)
         matches = [v for v in vehicles if matches_criteria(v, criteria)]
 
