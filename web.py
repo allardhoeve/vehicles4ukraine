@@ -18,6 +18,7 @@ API_USER = os.environ.get("V4U_API_USER", "v4u")
 API_PASS = os.environ.get("V4U_API_PASS", "")
 
 app = Flask(__name__)
+app.jinja_env.filters["dotfmt"] = lambda v: f"{v:,}".replace(",", ".") if v else "0"
 
 
 def require_api_auth(f):
@@ -104,9 +105,9 @@ TEMPLATE = """
   <div class="info">
     <h3><a href="{{ v.source_url }}" target="_blank">{{ v.title }}</a></h3>
     <div class="meta">
-      <span class="price">&euro; {{ "{:,}".format(v.price) }}</span>
+      <span class="price">&euro; {{ v.price|dotfmt }}</span>
       <span>{{ v.year }}</span>
-      <span>{{ "{:,}".format(v.mileage_km) }} km</span>
+      <span>{{ v.mileage_km|dotfmt }} km</span>
       <span class="tag">{{ v.fuel }}</span>
       <span class="tag">{{ v.transmission }}</span>
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
@@ -122,7 +123,7 @@ TEMPLATE = """
     </div>
     {% if v.price_history|length > 1 %}
     <div class="price-history">
-      Price: {% for ph in v.price_history %}&euro;{{ "{:,}".format(ph[0]) }} ({{ ph[1][:10] }}){{ ' &rarr; ' if not loop.last }}{% endfor %}
+      Price: {% for ph in v.price_history %}&euro;{{ ph[0]|dotfmt }} ({{ ph[1][:10] }}){{ ' &rarr; ' if not loop.last }}{% endfor %}
     </div>
     {% endif %}
     <div class="first-seen">First seen: {{ v.first_seen[:10] }}</div>
