@@ -11,7 +11,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Copy application
-COPY search.py web.py config.yaml ./
+COPY db.py search.py web.py config.yaml ./
 RUN chown -R vehicles:vehicles /app
 
 # Shared volume for the database

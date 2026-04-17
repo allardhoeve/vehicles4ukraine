@@ -4,15 +4,11 @@
 import json
 import os
 import sqlite3
-
 from functools import wraps
 
 from flask import Flask, Response, g, jsonify, redirect, render_template_string, request, url_for
 
-DB_PATH = os.environ.get(
-    "V4U_DB_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db"),
-)
+from db import DB_PATH, Vehicle, init_db, is_rejected, upsert_vehicle
 
 API_USER = os.environ.get("V4U_API_USER", "v4u")
 API_PASS = os.environ.get("V4U_API_PASS", "")
@@ -56,7 +52,8 @@ TEMPLATE = """
   .info h3 a { color: #5dade2; text-decoration: none; }
   .info h3 a:hover { text-decoration: underline; }
   .meta { font-size: .85rem; color: #999; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
-  .meta a.location { color: inherit; text-decoration: underline; }
+  .meta a.location { color: inherit; text-decoration: none; }
+  .meta a.location .loc-name { text-decoration: underline; }
   .meta .price { color: #4caf50; font-weight: bold; font-size: 1.1rem; }
   .meta .tag { background: #2a3a4a; padding: .1rem .4rem; border-radius: 3px; }
   .actions { display: flex; flex-direction: column; gap: .3rem; flex-shrink: 0; }
@@ -116,9 +113,9 @@ TEMPLATE = """
       <span class="tag">{{ v.transmission }}</span>
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
-      {% if v.seller and v.location %}<span>{{ v.seller }}, <a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">&#x1F4CD; {{ v.location }}</a></span>
+      {% if v.seller and v.location %}<span>{{ v.seller }}, <a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">&#x1F4CD; <span class="loc-name">{{ v.location }}</span></a></span>
       {% elif v.seller %}<span>{{ v.seller }}</span>
-      {% elif v.location %}<span><a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">&#x1F4CD; {{ v.location }}</a></span>{% endif %}
+      {% elif v.location %}<span><a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">&#x1F4CD; <span class="loc-name">{{ v.location }}</span></a></span>{% endif %}
     </div>
     <div class="portals">
       {% for p in v.portals %}
@@ -229,7 +226,6 @@ CRITERIA_TEMPLATE = """
 
 def get_db():
     if "db" not in g:
-        from search import init_db
         g.db = init_db(DB_PATH)
         g.db.row_factory = sqlite3.Row
     return g.db
@@ -348,8 +344,6 @@ def unreject():
 @require_api_auth
 def api_vehicles():
     """Accept vehicles from a remote search process."""
-    from search import init_db, upsert_vehicle, is_rejected, Vehicle
-
     data = request.get_json()
     if not data or "vehicles" not in data:
         return jsonify({"error": "missing 'vehicles' key"}), 400
