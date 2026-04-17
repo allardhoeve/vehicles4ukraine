@@ -127,7 +127,7 @@ TEMPLATE = """
       Price: {% for ph in v.price_history %}&euro;{{ ph[0]|dotfmt }} ({{ ph[1][:10] }}){{ ' &rarr; ' if not loop.last }}{% endfor %}
     </div>
     {% endif %}
-    <div class="first-seen">First seen: {{ v.first_seen[:10] }}</div>
+    <div class="first-seen">First seen: {{ v.first_seen[:16] }}</div>
   </div>
   <div class="actions">
     {% if v.rejected %}

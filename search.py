@@ -395,7 +395,7 @@ def cmd_list():
         print(f"  EUR {price:>7,}  {year}  {km:>7,}km  {make} {model}  [{loc}]")
         print(f"           {title}")
         print(f"           {url}")
-        print(f"           (first seen: {first_seen[:10]})")
+        print(f"           (first seen: {first_seen[:16]})")
         print()
     conn.close()
 
