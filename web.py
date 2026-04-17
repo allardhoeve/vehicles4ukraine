@@ -115,9 +115,9 @@ TEMPLATE = """
       <span class="tag">{{ v.transmission }}</span>
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
-      {% if v.seller and v.location %}<span>{{ v.seller }}, {{ v.location }}</span>
+      {% if v.seller and v.location %}<span>{{ v.seller }}, <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>
       {% elif v.seller %}<span>{{ v.seller }}</span>
-      {% elif v.location %}<span>{{ v.location }}</span>{% endif %}
+      {% elif v.location %}<span><a href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>{% endif %}
     </div>
     <div class="portals">
       {% for p in v.portals %}
