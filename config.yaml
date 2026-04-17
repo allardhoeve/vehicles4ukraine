@@ -1,5 +1,11 @@
 # proxy: socks5://10.124.0.1:1080  # Mullvad SOCKS5
 
+# Push results to remote API instead of local SQLite
+# api:
+#   url: https://your-vps:5001/api/vehicles
+#   user: v4u
+#   pass: wap5
+
 criteria:
   max_price: 5000        # EUR
   fuel: DIESEL

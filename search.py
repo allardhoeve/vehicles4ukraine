@@ -65,6 +65,19 @@ class Vehicle:
     portals: list[dict] = field(default_factory=list)  # all portal links
     scraped_at: datetime = field(default_factory=datetime.now)
 
+    _FIELDS = [
+        "make", "model", "title", "year", "price", "mileage_km",
+        "fuel", "transmission", "color", "seller", "location",
+        "source_url", "image_url", "portals",
+    ]
+
+    def to_dict(self) -> dict:
+        return {f: getattr(self, f) for f in self._FIELDS}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Vehicle":
+        return cls(**{f: d.get(f) for f in cls._FIELDS})
+
 
 # --- HTTP ---
 
@@ -320,6 +333,33 @@ def matches_criteria(v: Vehicle, criteria: dict) -> bool:
     return True
 
 
+# --- API push ---
+
+def push_to_api(vehicles: list[Vehicle], api_url: str, api_user: str, api_pass: str):
+    """Push vehicles to the remote web API."""
+    import base64
+
+    payload = json.dumps({"vehicles": [v.to_dict() for v in vehicles]}).encode()
+    credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
+
+    req = urllib.request.Request(
+        api_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Basic {credentials}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read().decode())
+            return result
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"\n  API error: HTTP {e.code}: {body}", file=sys.stderr)
+        sys.exit(1)
+
+
 # --- Main ---
 
 def main():
@@ -328,8 +368,8 @@ def main():
     targets = config.get("targets", [])
     delay = config.get("delay_between_requests", 2)
     proxy = config.get("proxy")
+    api_config = config.get("api")
 
-    conn = init_db(DB_PATH)
     all_matches = []
 
     for i, target in enumerate(targets):
@@ -347,69 +387,82 @@ def main():
         print(f"{len(vehicles)} found, {len(matches)} match criteria")
         all_matches.extend(matches)
 
-    # Store and detect changes
-    new_vehicles = []
-    price_changes = []
-    seen_again = 0
+    # Filter out vehicles without source URL
+    all_matches = [v for v in all_matches if v.source_url]
 
-    for v in all_matches:
-        if not v.source_url:
-            continue
-        # Skip rejected vehicles
-        if is_rejected(conn, v.source_url):
-            continue
-        result = upsert_vehicle(conn, v)
-        if result == "new":
-            new_vehicles.append(v)
-        elif result == "price_changed":
-            price_changes.append(v)
-        else:
-            seen_again += 1
+    if api_config:
+        # Push to remote API
+        api_url = api_config["url"]
+        api_user = api_config.get("user", "v4u")
+        api_pass = api_config["pass"]
+        print(f"\n  Pushing {len(all_matches)} vehicles to {api_url} ... ", end="", flush=True)
+        result = push_to_api(all_matches, api_url, api_user, api_pass)
+        print("done")
+        print(f"\n{'='*70}")
+        print(f"  {result['received']} received | {result['new']} NEW | "
+              f"{result['price_changed']} price changed | {result['skipped_rejected']} rejected")
+        print(f"{'='*70}\n")
+    else:
+        # Store locally
+        conn = init_db(DB_PATH)
+        new_vehicles = []
+        price_changes = []
+        seen_again = 0
 
-    conn.commit()
+        for v in all_matches:
+            if is_rejected(conn, v.source_url):
+                continue
+            result = upsert_vehicle(conn, v)
+            if result == "new":
+                new_vehicles.append(v)
+            elif result == "price_changed":
+                price_changes.append(v)
+            else:
+                seen_again += 1
 
-    # Report
-    total_in_db = conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]
-    rejected_count = conn.execute(
-        "SELECT COUNT(*) FROM vehicles WHERE rejected = 1"
-    ).fetchone()[0]
+        conn.commit()
 
-    print(f"\n{'='*70}")
-    print(f"  {len(all_matches)} matched criteria | {len(new_vehicles)} NEW | "
-          f"{len(price_changes)} price changed | {seen_again} seen before")
-    print(f"  DB total: {total_in_db} vehicles ({rejected_count} rejected)")
-    print(f"{'='*70}")
+        total_in_db = conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]
+        rejected_count = conn.execute(
+            "SELECT COUNT(*) FROM vehicles WHERE rejected = 1"
+        ).fetchone()[0]
 
-    if new_vehicles:
-        print(f"\n  NEW VEHICLES:\n")
-        for v in sorted(new_vehicles, key=lambda x: x.price or 99999):
-            print(
-                f"  EUR {v.price:>7,}  {v.year}  {v.mileage_km:>7,}km  "
-                f"{v.make} {v.model}  [{v.location}]"
-            )
-            print(f"           {v.title}")
-            print(f"           {v.source_url}")
-            print()
+        print(f"\n{'='*70}")
+        print(f"  {len(all_matches)} matched criteria | {len(new_vehicles)} NEW | "
+              f"{len(price_changes)} price changed | {seen_again} seen before")
+        print(f"  DB total: {total_in_db} vehicles ({rejected_count} rejected)")
+        print(f"{'='*70}")
 
-    if price_changes:
-        print(f"\n  PRICE CHANGES:\n")
-        for v in price_changes:
-            history = conn.execute(
-                "SELECT price, seen_at FROM price_history WHERE source_url = ? ORDER BY seen_at",
-                (v.source_url,),
-            ).fetchall()
-            old_price = history[-2][0] if len(history) >= 2 else "?"
-            print(
-                f"  EUR {old_price:>7,} -> {v.price:>7,}  "
-                f"{v.make} {v.model}  [{v.location}]"
-            )
-            print(f"           {v.source_url}")
-            print()
+        if new_vehicles:
+            print(f"\n  NEW VEHICLES:\n")
+            for v in sorted(new_vehicles, key=lambda x: x.price or 99999):
+                print(
+                    f"  EUR {v.price:>7,}  {v.year}  {v.mileage_km:>7,}km  "
+                    f"{v.make} {v.model}  [{v.location}]"
+                )
+                print(f"           {v.title}")
+                print(f"           {v.source_url}")
+                print()
 
-    if not new_vehicles and not price_changes:
-        print("\n  No changes since last run.\n")
+        if price_changes:
+            print(f"\n  PRICE CHANGES:\n")
+            for v in price_changes:
+                history = conn.execute(
+                    "SELECT price, seen_at FROM price_history WHERE source_url = ? ORDER BY seen_at",
+                    (v.source_url,),
+                ).fetchall()
+                old_price = history[-2][0] if len(history) >= 2 else "?"
+                print(
+                    f"  EUR {old_price:>7,} -> {v.price:>7,}  "
+                    f"{v.make} {v.model}  [{v.location}]"
+                )
+                print(f"           {v.source_url}")
+                print()
 
-    conn.close()
+        if not new_vehicles and not price_changes:
+            print("\n  No changes since last run.\n")
+
+        conn.close()
 
 
 def cmd_reject(source_url: str):

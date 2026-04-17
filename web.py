@@ -5,14 +5,29 @@ import json
 import os
 import sqlite3
 
-from flask import Flask, g, jsonify, redirect, render_template_string, request, url_for
+from functools import wraps
+
+from flask import Flask, Response, g, jsonify, redirect, render_template_string, request, url_for
 
 DB_PATH = os.environ.get(
     "V4U_DB_PATH",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicles.db"),
 )
 
+API_USER = os.environ.get("V4U_API_USER", "v4u")
+API_PASS = os.environ.get("V4U_API_PASS", "")
+
 app = Flask(__name__)
+
+
+def require_api_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not API_PASS or not auth or auth.username != API_USER or auth.password != API_PASS:
+            return Response("Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="v4u"'})
+        return f(*args, **kwargs)
+    return decorated
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -209,6 +224,43 @@ def unreject():
     db.execute("UPDATE vehicles SET rejected = 0 WHERE source_url = ?", (source_url,))
     db.commit()
     return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/api/vehicles", methods=["POST"])
+@require_api_auth
+def api_vehicles():
+    """Accept vehicles from a remote search process."""
+    from search import init_db, upsert_vehicle, is_rejected, Vehicle
+
+    data = request.get_json()
+    if not data or "vehicles" not in data:
+        return jsonify({"error": "missing 'vehicles' key"}), 400
+
+    db = get_db()
+    new_count = 0
+    changed_count = 0
+    skipped = 0
+
+    for v_data in data["vehicles"]:
+        v = Vehicle.from_dict(v_data)
+        if not v.source_url:
+            continue
+        if is_rejected(db, v.source_url):
+            skipped += 1
+            continue
+        result = upsert_vehicle(db, v)
+        if result == "new":
+            new_count += 1
+        elif result == "price_changed":
+            changed_count += 1
+
+    db.commit()
+    return jsonify({
+        "received": len(data["vehicles"]),
+        "new": new_count,
+        "price_changed": changed_count,
+        "skipped_rejected": skipped,
+    })
 
 
 def run_production():
