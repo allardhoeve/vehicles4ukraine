@@ -111,7 +111,9 @@ TEMPLATE = """
       <span class="tag">{{ v.transmission }}</span>
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
-      <span>{{ v.seller }}{% if v.location %}, {{ v.location }}{% endif %}</span>
+      {% if v.seller and v.location %}<span>{{ v.seller }}, {{ v.location }}</span>
+      {% elif v.seller %}<span>{{ v.seller }}</span>
+      {% elif v.location %}<span>{{ v.location }}</span>{% endif %}
     </div>
     <div class="portals">
       {% for p in v.portals %}
