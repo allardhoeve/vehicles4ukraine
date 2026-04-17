@@ -264,6 +264,15 @@ def init_db(db_path: str) -> sqlite3.Connection:
             FOREIGN KEY (source_url) REFERENCES vehicles(source_url)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS search_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL,
+            total_found INTEGER NOT NULL,
+            matches INTEGER NOT NULL,
+            run_at TEXT NOT NULL
+        )
+    """)
     # Migrate: add priority column if missing
     columns = [r[1] for r in conn.execute("PRAGMA table_info(vehicles)").fetchall()]
     if "priority" not in columns:
@@ -342,11 +351,18 @@ def matches_criteria(v: Vehicle, criteria: dict) -> bool:
 
 # --- API push ---
 
-def push_to_api(vehicles: list[Vehicle], api_url: str, api_user: str, api_pass: str):
+def push_to_api(vehicles: list[Vehicle], api_url: str, api_user: str, api_pass: str,
+                search_runs: list[tuple] | None = None):
     """Push vehicles to the remote web API."""
     import base64
 
-    payload = json.dumps({"vehicles": [v.to_dict() for v in vehicles]}).encode()
+    data = {"vehicles": [v.to_dict() for v in vehicles]}
+    if search_runs:
+        data["search_runs"] = [
+            {"slug": s[0], "total_found": s[1], "matches": s[2], "run_at": s[3]}
+            for s in search_runs
+        ]
+    payload = json.dumps(data).encode()
     credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
 
     req = urllib.request.Request(
@@ -378,6 +394,8 @@ def main():
     api_config = config.get("api")
 
     all_matches = []
+    run_stats = []
+    run_at = datetime.now().isoformat()
 
     for i, target in enumerate(targets):
         if i > 0:
@@ -396,6 +414,7 @@ def main():
 
         print(f"{len(vehicles)} found, {len(matches)} match criteria")
         all_matches.extend(matches)
+        run_stats.append((slug, len(vehicles), len(matches), run_at))
 
     # Filter out vehicles without source URL
     all_matches = [v for v in all_matches if v.source_url]
@@ -406,7 +425,7 @@ def main():
         api_user = api_config.get("user", "v4u")
         api_pass = api_config["pass"]
         print(f"\n  Pushing {len(all_matches)} vehicles to {api_url} ... ", end="", flush=True)
-        result = push_to_api(all_matches, api_url, api_user, api_pass)
+        result = push_to_api(all_matches, api_url, api_user, api_pass, search_runs=run_stats)
         print("done")
         print(f"\n{'='*70}")
         print(f"  {result['received']} received | {result['new']} NEW | "
@@ -430,6 +449,11 @@ def main():
             else:
                 seen_again += 1
 
+        for stat in run_stats:
+            conn.execute(
+                "INSERT INTO search_runs (slug, total_found, matches, run_at) VALUES (?, ?, ?, ?)",
+                stat,
+            )
         conn.commit()
 
         total_in_db = conn.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]

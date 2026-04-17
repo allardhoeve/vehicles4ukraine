@@ -84,6 +84,9 @@ TEMPLATE = """
   {{ vehicles|length }} vehicle{{ 's' if vehicles|length != 1 }} shown
   &middot; {{ total }} total in DB
   &middot; {{ rejected_count }} rejected
+  {% if last_search %}
+  &middot; Last search: {{ last_search.run_at }} &mdash; {{ last_search.total_found|dotfmt }} found, {{ last_search.matches }} matched
+  {% endif %}
 </div>
 
 <div class="filters">
@@ -172,6 +175,7 @@ CRITERIA_TEMPLATE = """
   .tag-high { color: #4caf50; }
   .tag-med { color: #ff9800; }
   .tag-skip { color: #888; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -188,31 +192,25 @@ CRITERIA_TEMPLATE = """
 </ul>
 
 <h2>Currently searching</h2>
-<table>
-  <tr><th>Model</th><th>Type</th><th>Notes</th></tr>
-  <tr><td>Nissan Navara</td><td>Pickup</td><td>Solid workhorse, good diesel engines</td></tr>
-  <tr><td>Mitsubishi L200</td><td>Pickup</td><td>Very common, parts widely available</td></tr>
-  <tr><td>Nissan Patrol</td><td>SUV</td><td>Legendary off-road, older models are affordable</td></tr>
-  <tr><td>Mitsubishi Pajero</td><td>SUV</td><td>Capable off-roader, good parts availability</td></tr>
-  <tr><td>Kia Sorento</td><td>SUV</td><td>Budget-friendly, decent off-road</td></tr>
-  <tr><td>Hyundai Terracan</td><td>SUV</td><td>Cheap, shares some Mitsubishi drivetrain parts</td></tr>
-</table>
-
-<h2>Candidates to add</h2>
 
 <h3 class="tag-high">High priority</h3>
 <table>
-  <tr><th>Model</th><th>Type</th><th>Why</th><th>Parts</th></tr>
-  <tr><td>Toyota Hilux</td><td>Pickup</td><td>Gold standard for conflict/aid zones. Indestructible.</td><td>Excellent globally</td></tr>
-  <tr><td>Toyota Land Cruiser</td><td>SUV</td><td>The UN/NGO vehicle of choice. 70/80/100 series legendary.</td><td>Best in class globally</td></tr>
-  <tr><td>Ford Ranger</td><td>Pickup</td><td>Very common in NL, more likely to find under &euro;5,000.</td><td>Good in EU and Ukraine</td></tr>
+  <tr><th>Model</th><th>Type</th><th>Notes</th><th>Found</th><th>Matched</th></tr>
+  <tr><td>Toyota Hilux</td><td>Pickup</td><td>Gold standard for conflict/aid zones. Indestructible.</td><td>{{ stats.get('toyota/hilux', {}).get('total_found', '—') }}</td><td>{{ stats.get('toyota/hilux', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Toyota Land Cruiser</td><td>SUV</td><td>The UN/NGO vehicle of choice. 70/80/100 series legendary.</td><td>{{ stats.get('toyota/land-cruiser', {}).get('total_found', '—') }}</td><td>{{ stats.get('toyota/land-cruiser', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Ford Ranger</td><td>Pickup</td><td>Very common in NL, good chance under &euro;5,000.</td><td>{{ stats.get('ford/ranger', {}).get('total_found', '—') }}</td><td>{{ stats.get('ford/ranger', {}).get('matches', '—') }}</td></tr>
 </table>
 
 <h3 class="tag-med">Medium priority</h3>
 <table>
-  <tr><th>Model</th><th>Type</th><th>Why</th><th>Parts</th></tr>
-  <tr><td>Isuzu D-Max</td><td>Pickup</td><td>Underrated workhorse, potentially cheaper.</td><td>Decent, Isuzu in Eastern Europe</td></tr>
-  <tr><td>Mitsubishi Pajero Sport</td><td>SUV</td><td>Shares L200 platform, same parts pool.</td><td>Good (same as L200)</td></tr>
+  <tr><th>Model</th><th>Type</th><th>Notes</th><th>Found</th><th>Matched</th></tr>
+  <tr><td>Nissan Navara</td><td>Pickup</td><td>Solid workhorse, good diesel engines</td><td>{{ stats.get('nissan/navara', {}).get('total_found', '—') }}</td><td>{{ stats.get('nissan/navara', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Mitsubishi L200</td><td>Pickup</td><td>Very common, parts widely available</td><td>{{ stats.get('mitsubishi/l-200', {}).get('total_found', '—') }}</td><td>{{ stats.get('mitsubishi/l-200', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Nissan Patrol</td><td>SUV</td><td>Legendary off-road, older models affordable</td><td>{{ stats.get('nissan/patrol', {}).get('total_found', '—') }}</td><td>{{ stats.get('nissan/patrol', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Mitsubishi Pajero</td><td>SUV</td><td>Capable off-roader, good parts availability</td><td>{{ stats.get('mitsubishi/pajero', {}).get('total_found', '—') }}</td><td>{{ stats.get('mitsubishi/pajero', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Kia Sorento</td><td>SUV</td><td>Budget-friendly, decent off-road</td><td>{{ stats.get('kia/sorento', {}).get('total_found', '—') }}</td><td>{{ stats.get('kia/sorento', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Hyundai Terracan</td><td>SUV</td><td>Cheap, shares Mitsubishi drivetrain parts</td><td>{{ stats.get('hyundai/terracan', {}).get('total_found', '—') }}</td><td>{{ stats.get('hyundai/terracan', {}).get('matches', '—') }}</td></tr>
+  <tr><td>Isuzu D-Max</td><td>Pickup</td><td>Underrated workhorse, potentially cheaper</td><td>{{ stats.get('isuzu/d-max', {}).get('total_found', '—') }}</td><td>{{ stats.get('isuzu/d-max', {}).get('matches', '—') }}</td></tr>
 </table>
 
 <h3 class="tag-skip">Skipped</h3>
@@ -295,13 +293,36 @@ def index():
             "price_history": [(ph[0], ph[1]) for ph in price_history],
         })
 
+    # Last search run summary
+    last_run = db.execute("""
+        SELECT SUM(total_found), SUM(matches), MAX(run_at)
+        FROM search_runs
+        WHERE run_at = (SELECT MAX(run_at) FROM search_runs)
+    """).fetchone()
+    last_search = None
+    if last_run and last_run[2]:
+        last_search = {
+            "total_found": last_run[0],
+            "matches": last_run[1],
+            "run_at": last_run[2][:16].replace("T", " "),
+        }
+
     return render_template_string(TEMPLATE, vehicles=vehicles, total=total,
-                                  rejected_count=rejected_count, show=show)
+                                  rejected_count=rejected_count, show=show,
+                                  last_search=last_search)
 
 
 @app.route("/criteria")
 def criteria():
-    return render_template_string(CRITERIA_TEMPLATE)
+    db = get_db()
+    # Per-model stats from last run
+    run_stats = db.execute("""
+        SELECT slug, total_found, matches
+        FROM search_runs
+        WHERE run_at = (SELECT MAX(run_at) FROM search_runs)
+    """).fetchall()
+    stats_by_slug = {r[0]: {"total_found": r[1], "matches": r[2]} for r in run_stats}
+    return render_template_string(CRITERIA_TEMPLATE, stats=stats_by_slug)
 
 
 @app.route("/reject", methods=["POST"])
@@ -349,6 +370,12 @@ def api_vehicles():
             new_count += 1
         elif result == "price_changed":
             changed_count += 1
+
+    for sr in data.get("search_runs", []):
+        db.execute(
+            "INSERT INTO search_runs (slug, total_found, matches, run_at) VALUES (?, ?, ?, ?)",
+            (sr["slug"], sr["total_found"], sr["matches"], sr["run_at"]),
+        )
 
     db.commit()
     return jsonify({
