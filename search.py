@@ -402,19 +402,32 @@ def main():
             time.sleep(delay)
 
         slug = target["slug"]
-        url = f"https://www.gaspedaal.nl/{slug}"
+        priority = target.get("priority", "medium")
         print(f"[{i+1}/{len(targets)}] {slug} ... ", end="", flush=True)
 
-        html = fetch(url, proxy=proxy)  # crashes on non-200
-        vehicles = parse_vehicles(html)
-        priority = target.get("priority", "medium")
-        for v in vehicles:
-            v.priority = priority
-        matches = [v for v in vehicles if matches_criteria(v, criteria)]
+        # Fetch all pages
+        all_vehicles = []
+        page = 1
+        while True:
+            url = f"https://www.gaspedaal.nl/{slug}"
+            if page > 1:
+                url += f"?page={page}"
+            html = fetch(url, proxy=proxy)  # crashes on non-200
+            vehicles = parse_vehicles(html)
+            all_vehicles.extend(vehicles)
+            if len(vehicles) < 100:
+                break
+            page += 1
+            time.sleep(delay)
 
-        print(f"{len(vehicles)} found, {len(matches)} match criteria")
+        for v in all_vehicles:
+            v.priority = priority
+        matches = [v for v in all_vehicles if matches_criteria(v, criteria)]
+
+        pages_str = f" ({page} pages)" if page > 1 else ""
+        print(f"{len(all_vehicles)} found{pages_str}, {len(matches)} match criteria")
         all_matches.extend(matches)
-        run_stats.append((slug, len(vehicles), len(matches), run_at))
+        run_stats.append((slug, len(all_vehicles), len(matches), run_at))
 
     # Filter out vehicles without source URL
     all_matches = [v for v in all_matches if v.source_url]
