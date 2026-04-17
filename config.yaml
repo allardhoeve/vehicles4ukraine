@@ -1,10 +1,10 @@
 # proxy: socks5://10.124.0.1:1080  # Mullvad SOCKS5
 
 # Push results to remote API instead of local SQLite
-# api:
-#   url: https://your-vps:5001/api/vehicles
-#   user: v4u
-#   pass: wap5
+api:
+  url: https://v4u.allard.dev/api/vehicles
+  user: v4u
+  pass: wap5
 
 criteria:
   max_price: 5000        # EUR
@@ -17,23 +17,49 @@ targets:
   - make: nissan
     model: navara
     slug: nissan/navara
+    priority: medium
 
   - make: mitsubishi
     model: l200
     slug: mitsubishi/l-200
+    priority: medium
 
   - make: nissan
     model: patrol
     slug: nissan/patrol
+    priority: medium
 
   - make: mitsubishi
     model: pajero
     slug: mitsubishi/pajero
+    priority: medium
 
   - make: kia
     model: sorento
     slug: kia/sorento
+    priority: medium
 
   - make: hyundai
     model: terracan
     slug: hyundai/terracan
+    priority: medium
+
+  - make: toyota
+    model: hilux
+    slug: toyota/hilux
+    priority: high
+
+  - make: toyota
+    model: land-cruiser
+    slug: toyota/land-cruiser
+    priority: high
+
+  - make: ford
+    model: ranger
+    slug: ford/ranger
+    priority: high
+
+  - make: isuzu
+    model: d-max
+    slug: isuzu/d-max
+    priority: medium

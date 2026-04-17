@@ -62,13 +62,14 @@ class Vehicle:
     location: str | None
     source_url: str | None  # click-through to actual listing
     image_url: str | None = None
+    priority: str | None = None  # high / medium
     portals: list[dict] = field(default_factory=list)  # all portal links
     scraped_at: datetime = field(default_factory=datetime.now)
 
     _FIELDS = [
         "make", "model", "title", "year", "price", "mileage_km",
         "fuel", "transmission", "color", "seller", "location",
-        "source_url", "image_url", "portals",
+        "source_url", "image_url", "priority", "portals",
     ]
 
     def to_dict(self) -> dict:
@@ -247,6 +248,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
             seller TEXT,
             location TEXT,
             image_url TEXT,
+            priority TEXT,
             portals TEXT,
             first_seen_at TEXT NOT NULL,
             last_seen_at TEXT NOT NULL,
@@ -262,6 +264,11 @@ def init_db(db_path: str) -> sqlite3.Connection:
             FOREIGN KEY (source_url) REFERENCES vehicles(source_url)
         )
     """)
+    # Migrate: add priority column if missing
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(vehicles)").fetchall()]
+    if "priority" not in columns:
+        conn.execute("ALTER TABLE vehicles ADD COLUMN priority TEXT")
+
     conn.commit()
     return conn
 
@@ -280,11 +287,11 @@ def upsert_vehicle(conn: sqlite3.Connection, v: Vehicle) -> str | None:
             """INSERT INTO vehicles
                (source_url, make, model, title, year, price, mileage_km,
                 fuel, transmission, color, seller, location, image_url,
-                portals, first_seen_at, last_seen_at, price_at_first_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                priority, portals, first_seen_at, last_seen_at, price_at_first_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (v.source_url, v.make, v.model, v.title, v.year, v.price,
              v.mileage_km, v.fuel, v.transmission, v.color,
-             v.seller, v.location, v.image_url, json.dumps(v.portals),
+             v.seller, v.location, v.image_url, v.priority, json.dumps(v.portals),
              now, now, v.price),
         )
         conn.execute(
@@ -296,9 +303,9 @@ def upsert_vehicle(conn: sqlite3.Connection, v: Vehicle) -> str | None:
     old_price = row[0]
     conn.execute(
         """UPDATE vehicles SET
-           price = ?, mileage_km = ?, last_seen_at = ?, image_url = ?, portals = ?
+           price = ?, mileage_km = ?, last_seen_at = ?, image_url = ?, priority = ?, portals = ?
            WHERE source_url = ?""",
-        (v.price, v.mileage_km, now, v.image_url, json.dumps(v.portals), v.source_url),
+        (v.price, v.mileage_km, now, v.image_url, v.priority, json.dumps(v.portals), v.source_url),
     )
 
     if old_price != v.price:
@@ -382,6 +389,9 @@ def main():
 
         html = fetch(url, proxy=proxy)  # crashes on non-200
         vehicles = parse_vehicles(html)
+        priority = target.get("priority", "medium")
+        for v in vehicles:
+            v.priority = priority
         matches = [v for v in vehicles if matches_criteria(v, criteria)]
 
         print(f"{len(vehicles)} found, {len(matches)} match criteria")

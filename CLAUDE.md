@@ -9,6 +9,7 @@ Vehicle scouting system that crawls Dutch car platforms to find cheap, reliable 
 - Python package/venv management: always use `uv` (not pip, not venv)
   - `uv init`, `uv add <package>`, `uv run python ...`
 - Tasks/planning: `todo/tasks/` directory, follow `task-template.md`
+- WebFetch() is blocked by target sites — use `curl` via Bash instead
 
 ## Running locally
 

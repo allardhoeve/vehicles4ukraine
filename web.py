@@ -69,10 +69,16 @@ TEMPLATE = """
   .price-history { font-size: .8rem; color: #ff9800; margin-top: .2rem; }
   .empty { text-align: center; color: #666; padding: 3rem; }
   .first-seen { font-size: .75rem; color: #666; }
+  .priority { padding: .1rem .4rem; border-radius: 3px; font-size: .75rem; font-weight: bold; }
+  .priority-high { background: #2a4a2a; color: #4caf50; }
+  .priority-medium { background: #3a3a1a; color: #ff9800; }
 </style>
 </head>
 <body>
-<h1>&#x1f1fa;&#x1f1e6; Vehicles4Ukraine</h1>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.5rem;">
+  <h1>&#x1f1fa;&#x1f1e6; Vehicles4Ukraine</h1>
+  <a href="/criteria" style="padding:.4rem .8rem; background:#1a3a5a; border:1px solid #3a6a9a; border-radius:4px; color:#fff; text-decoration:none; font-size:.85rem;">Search criteria</a>
+</div>
 <div class="stats">
   {{ vehicles|length }} vehicle{{ 's' if vehicles|length != 1 }} shown
   &middot; {{ total }} total in DB
@@ -103,6 +109,7 @@ TEMPLATE = """
       <span>{{ "{:,}".format(v.mileage_km) }} km</span>
       <span class="tag">{{ v.fuel }}</span>
       <span class="tag">{{ v.transmission }}</span>
+      {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
       <span>{{ v.seller }}{% if v.location %}, {{ v.location }}{% endif %}</span>
     </div>
@@ -133,6 +140,86 @@ TEMPLATE = """
   </div>
 </div>
 {% endfor %}
+</body>
+</html>
+"""
+
+
+CRITERIA_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search Criteria — Vehicles4Ukraine</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0f1419; color: #e0e0e0; padding: 1rem; max-width: 800px; margin: 0 auto; }
+  h1 { margin-bottom: .5rem; color: #ffd700; }
+  h2 { color: #5dade2; margin: 1.5rem 0 .5rem; font-size: 1.1rem; }
+  h3 { color: #ccc; margin: 1rem 0 .4rem; font-size: .95rem; }
+  p, li { line-height: 1.5; color: #bbb; font-size: .9rem; }
+  ul { margin-left: 1.2rem; margin-bottom: .5rem; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .85rem; }
+  th { text-align: left; padding: .4rem .6rem; background: #1a2332; color: #aaa; border-bottom: 1px solid #2a3a4a; }
+  td { padding: .4rem .6rem; border-bottom: 1px solid #1a2332; }
+  .back { display: inline-block; margin-bottom: 1rem; padding: .4rem .8rem; background: #1a3a5a; border: 1px solid #3a6a9a;
+          border-radius: 4px; color: #fff; text-decoration: none; font-size: .85rem; }
+  .back:hover { background: #2a4a6a; }
+  .tag-high { color: #4caf50; }
+  .tag-med { color: #ff9800; }
+  .tag-skip { color: #888; }
+</style>
+</head>
+<body>
+<a href="/" class="back">&larr; Back to vehicles</a>
+<h1>&#x1f1fa;&#x1f1e6; Search Criteria</h1>
+
+<h2>What we're looking for</h2>
+<ul>
+  <li><strong>Pickup trucks</strong> — like the Mitsubishi L200</li>
+  <li><strong>Off-road SUVs</strong> — Eastern Ukraine doesn't have good roads</li>
+  <li><strong>Diesel</strong>, manual transmission</li>
+  <li><strong>Easy to repair</strong> with good parts availability in Eastern Europe</li>
+  <li>Max price: <strong>&euro;5,000</strong></li>
+</ul>
+
+<h2>Currently searching</h2>
+<table>
+  <tr><th>Model</th><th>Type</th><th>Notes</th></tr>
+  <tr><td>Nissan Navara</td><td>Pickup</td><td>Solid workhorse, good diesel engines</td></tr>
+  <tr><td>Mitsubishi L200</td><td>Pickup</td><td>Very common, parts widely available</td></tr>
+  <tr><td>Nissan Patrol</td><td>SUV</td><td>Legendary off-road, older models are affordable</td></tr>
+  <tr><td>Mitsubishi Pajero</td><td>SUV</td><td>Capable off-roader, good parts availability</td></tr>
+  <tr><td>Kia Sorento</td><td>SUV</td><td>Budget-friendly, decent off-road</td></tr>
+  <tr><td>Hyundai Terracan</td><td>SUV</td><td>Cheap, shares some Mitsubishi drivetrain parts</td></tr>
+</table>
+
+<h2>Candidates to add</h2>
+
+<h3 class="tag-high">High priority</h3>
+<table>
+  <tr><th>Model</th><th>Type</th><th>Why</th><th>Parts</th></tr>
+  <tr><td>Toyota Hilux</td><td>Pickup</td><td>Gold standard for conflict/aid zones. Indestructible.</td><td>Excellent globally</td></tr>
+  <tr><td>Toyota Land Cruiser</td><td>SUV</td><td>The UN/NGO vehicle of choice. 70/80/100 series legendary.</td><td>Best in class globally</td></tr>
+  <tr><td>Ford Ranger</td><td>Pickup</td><td>Very common in NL, more likely to find under &euro;5,000.</td><td>Good in EU and Ukraine</td></tr>
+</table>
+
+<h3 class="tag-med">Medium priority</h3>
+<table>
+  <tr><th>Model</th><th>Type</th><th>Why</th><th>Parts</th></tr>
+  <tr><td>Isuzu D-Max</td><td>Pickup</td><td>Underrated workhorse, potentially cheaper.</td><td>Decent, Isuzu in Eastern Europe</td></tr>
+  <tr><td>Mitsubishi Pajero Sport</td><td>SUV</td><td>Shares L200 platform, same parts pool.</td><td>Good (same as L200)</td></tr>
+</table>
+
+<h3 class="tag-skip">Skipped</h3>
+<table>
+  <tr><th>Model</th><th>Type</th><th>Why skipped</th></tr>
+  <tr><td>Land Rover Defender</td><td>SUV</td><td>Capable but expensive to maintain, electrical issues</td></tr>
+  <tr><td>Isuzu Trooper</td><td>SUV</td><td>Too old, parts availability declining</td></tr>
+  <tr><td>Suzuki Jimny</td><td>SUV</td><td>Too small for hauling supplies</td></tr>
+</table>
+
 </body>
 </html>
 """
@@ -196,6 +283,7 @@ def index():
             "seller": row["seller"],
             "location": row["location"],
             "image_url": row["image_url"] if "image_url" in row.keys() else None,
+            "priority": row["priority"] if "priority" in row.keys() else None,
             "portals": portals,
             "rejected": row["rejected"],
             "first_seen": row["first_seen_at"],
@@ -206,6 +294,11 @@ def index():
 
     return render_template_string(TEMPLATE, vehicles=vehicles, total=total,
                                   rejected_count=rejected_count, show=show)
+
+
+@app.route("/criteria")
+def criteria():
+    return render_template_string(CRITERIA_TEMPLATE)
 
 
 @app.route("/reject", methods=["POST"])
