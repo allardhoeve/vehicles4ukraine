@@ -56,6 +56,7 @@ TEMPLATE = """
   .info h3 a { color: #5dade2; text-decoration: none; }
   .info h3 a:hover { text-decoration: underline; }
   .meta { font-size: .85rem; color: #999; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+  .meta a.location { color: inherit; text-decoration: underline; }
   .meta .price { color: #4caf50; font-weight: bold; font-size: 1.1rem; }
   .meta .tag { background: #2a3a4a; padding: .1rem .4rem; border-radius: 3px; }
   .actions { display: flex; flex-direction: column; gap: .3rem; flex-shrink: 0; }
@@ -115,9 +116,9 @@ TEMPLATE = """
       <span class="tag">{{ v.transmission }}</span>
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
-      {% if v.seller and v.location %}<span>{{ v.seller }}, <a href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>
+      {% if v.seller and v.location %}<span>{{ v.seller }}, <a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>
       {% elif v.seller %}<span>{{ v.seller }}</span>
-      {% elif v.location %}<span><a href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>{% endif %}
+      {% elif v.location %}<span><a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">{{ v.location }}</a></span>{% endif %}
     </div>
     <div class="portals">
       {% for p in v.portals %}
