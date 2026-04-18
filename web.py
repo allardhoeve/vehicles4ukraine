@@ -42,6 +42,12 @@ TEMPLATE = """
   .filters a { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
                color: #aaa; text-decoration: none; font-size: .85rem; }
   .filters a.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
+  .sort-bar { margin-bottom: 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .sort-bar span { color: #888; font-size: .85rem; }
+  .sort-bar button { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
+               color: #aaa; font-size: .85rem; cursor: pointer; }
+  .sort-bar button.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
+  .sort-bar button:hover { background: #1a3a5a; }
   .vehicle { background: #1a2332; border: 1px solid #2a3a4a; border-radius: 8px; padding: 1rem;
              margin-bottom: .75rem; display: flex; align-items: flex-start; gap: 1rem; }
   .vehicle img { width: 180px; height: 120px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
@@ -94,12 +100,21 @@ TEMPLATE = """
   <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
 </div>
 
+<div class="sort-bar">
+  <span>Sort by:</span>
+  <button class="active" onclick="sortVehicles('price')">Price</button>
+  <button onclick="sortVehicles('date')">Date found</button>
+  <button onclick="sortVehicles('model')">Model</button>
+</div>
+
 {% if not vehicles %}
 <div class="empty">No vehicles to show.</div>
 {% endif %}
 
+<div id="vehicle-list">
 {% for v in vehicles %}
-<div class="vehicle {{ 'new' if v.is_new else '' }} {{ 'price-changed' if v.price_changed else '' }}">
+<div class="vehicle {{ 'new' if v.is_new else '' }} {{ 'price-changed' if v.price_changed else '' }}"
+     data-price="{{ v.price }}" data-date="{{ v.first_seen }}" data-model="{{ v.make }} {{ v.model }}">
   {% if v.image_url %}
   <a href="{{ v.source_url }}" target="_blank"><img src="{{ v.image_url }}" alt="{{ v.title }}"></a>
   {% endif %}
@@ -144,6 +159,24 @@ TEMPLATE = """
   </div>
 </div>
 {% endfor %}
+</div>
+
+<script>
+function sortVehicles(key) {
+  var list = document.getElementById('vehicle-list');
+  var items = Array.from(list.querySelectorAll('.vehicle'));
+  items.sort(function(a, b) {
+    if (key === 'price') return Number(a.dataset.price) - Number(b.dataset.price);
+    if (key === 'date') return a.dataset.date < b.dataset.date ? 1 : -1;
+    if (key === 'model') return a.dataset.model.localeCompare(b.dataset.model);
+    return 0;
+  });
+  items.forEach(function(el) { list.appendChild(el); });
+  document.querySelectorAll('.sort-bar button').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().indexOf(key) >= 0);
+  });
+}
+</script>
 </body>
 </html>
 """
