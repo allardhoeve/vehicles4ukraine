@@ -10,6 +10,7 @@ criteria:
   max_price: 5000        # EUR
   fuel: DIESEL
   transmission: HANDMATIG
+  exclude_3door: true
 
 delay_between_requests: 2  # seconds
 
@@ -33,7 +34,6 @@ targets:
     model: pajero
     slug: mitsubishi/pajero
     priority: medium
-    exclude_3door: true
 
   - make: kia
     model: sorento

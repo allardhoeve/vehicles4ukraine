@@ -203,7 +203,8 @@ def matches_criteria(v: Vehicle, criteria: dict, target: dict | None = None) -> 
     transmission = criteria.get("transmission")
     if transmission and v.transmission != transmission:
         return False
-    if target and target.get("exclude_3door") and _3DOOR_RE.search(v.title or ""):
+    exclude_3door = criteria.get("exclude_3door") or (target and target.get("exclude_3door"))
+    if exclude_3door and _3DOOR_RE.search(v.title or ""):
         return False
     return True
 
