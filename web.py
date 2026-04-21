@@ -70,6 +70,8 @@ TEMPLATE = """
   .btn { padding: .4rem .8rem; border: none; border-radius: 4px; cursor: pointer; font-size: .8rem; }
   .btn-reject { background: #5a2a2a; color: #ff6b6b; }
   .btn-reject:hover { background: #7a3a3a; }
+  .btn-archive { background: #2a2a3a; color: #aaa; }
+  .btn-archive:hover { background: #3a3a5a; }
   .btn-undo { background: #2a3a2a; color: #6bff6b; }
   .btn-undo:hover { background: #3a5a3a; }
   .portals { font-size: .8rem; margin-top: .3rem; }
@@ -156,6 +158,11 @@ TEMPLATE = """
     <form method="POST" action="/unreject">
       <input type="hidden" name="source_url" value="{{ v.source_url }}">
       <button class="btn btn-undo" type="submit">Undo</button>
+    </form>
+    {% elif v.gone %}
+    <form method="POST" action="/archive">
+      <input type="hidden" name="source_url" value="{{ v.source_url }}">
+      <button class="btn btn-archive" type="submit">Archive</button>
     </form>
     {% else %}
     <form method="POST" action="/reject">
@@ -368,6 +375,15 @@ def criteria():
 
 @app.route("/reject", methods=["POST"])
 def reject():
+    db = get_db()
+    source_url = request.form["source_url"]
+    db.execute("UPDATE vehicles SET rejected = 1 WHERE source_url = ?", (source_url,))
+    db.commit()
+    return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/archive", methods=["POST"])
+def archive():
     db = get_db()
     source_url = request.form["source_url"]
     db.execute("UPDATE vehicles SET rejected = 1 WHERE source_url = ?", (source_url,))
