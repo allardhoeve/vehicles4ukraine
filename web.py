@@ -145,7 +145,7 @@ TEMPLATE = """
     </div>
     {% if v.price_history|length > 1 %}
     <div class="price-history">
-      Price: {% for ph in v.price_history %}&euro;{{ ph[0]|dotfmt }} ({{ ph[1][:10] }}){{ ' &rarr; ' if not loop.last }}{% endfor %}
+      Price: {% for ph in v.price_history %}€{{ ph[0]|dotfmt }} ({{ ph[1][:10] }}){{ ' → ' if not loop.last }}{% endfor %}
     </div>
     {% endif %}
     <div class="first-seen">First seen: {{ v.first_seen[:16] }}</div>
