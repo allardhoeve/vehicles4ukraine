@@ -38,15 +38,10 @@ TEMPLATE = """
   body { font-family: -apple-system, system-ui, sans-serif; background: #0f1419; color: #e0e0e0; padding: 1rem; }
   h1 { margin-bottom: .5rem; color: #ffd700; }
   .stats { color: #888; margin-bottom: 1rem; font-size: .9rem; }
-  .navbar { margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
-  .filters { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .filters { margin-bottom: 1rem; display: flex; gap: .5rem; flex-wrap: wrap; }
   .filters a { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
                color: #aaa; text-decoration: none; font-size: .85rem; }
   .filters a.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
-  .sections { display: flex; gap: .5rem; flex-wrap: wrap; }
-  .sections a { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
-               color: #aaa; text-decoration: none; font-size: .85rem; }
-  .sections a.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
   .sort-bar { margin-bottom: 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
   .sort-bar span { color: #888; font-size: .85rem; }
   .sort-bar button { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
@@ -104,15 +99,10 @@ TEMPLATE = """
   {% endif %}
 </div>
 
-<div class="navbar">
-  <div class="filters">
-    <a href="?show=active" class="{{ 'active' if show == 'active' }}">Active</a>
-    <a href="?show=new" class="{{ 'active' if show == 'new' }}">New today</a>
-  </div>
-  <div class="sections">
-    <a href="?show=archived" class="{{ 'active' if show == 'archived' }}">Archived</a>
-    <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
-  </div>
+<div class="filters">
+  <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
+  <a href="?show=open" class="{{ 'active' if show == 'open' }}">Open</a>
+  <a href="?show=archived" class="{{ 'active' if show == 'archived' }}">Archived</a>
 </div>
 
 <div class="sort-bar">
@@ -295,16 +285,14 @@ def close_db(exc):
 @app.route("/")
 def index():
     db = get_db()
-    show = request.args.get("show", "active")
+    show = request.args.get("show", "all")
 
     if show == "archived":
         where = "WHERE rejected = 1 OR gone = 1"
-    elif show == "new":
-        where = "WHERE rejected = 0 AND gone = 0 AND date(first_seen_at) = date('now')"
-    elif show == "all":
-        where = ""
-    else:
+    elif show == "open":
         where = "WHERE rejected = 0 AND gone = 0"
+    else:
+        where = ""
 
     rows = db.execute(
         f"SELECT * FROM vehicles {where} ORDER BY price"
