@@ -38,10 +38,15 @@ TEMPLATE = """
   body { font-family: -apple-system, system-ui, sans-serif; background: #0f1419; color: #e0e0e0; padding: 1rem; }
   h1 { margin-bottom: .5rem; color: #ffd700; }
   .stats { color: #888; margin-bottom: 1rem; font-size: .9rem; }
-  .filters { margin-bottom: 1rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+  .navbar { margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+  .filters { display: flex; gap: .5rem; flex-wrap: wrap; }
   .filters a { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
                color: #aaa; text-decoration: none; font-size: .85rem; }
   .filters a.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
+  .sections { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .sections a { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
+               color: #aaa; text-decoration: none; font-size: .85rem; }
+  .sections a.active { background: #1a3a5a; border-color: #3a6a9a; color: #fff; }
   .sort-bar { margin-bottom: 1rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
   .sort-bar span { color: #888; font-size: .85rem; }
   .sort-bar button { padding: .3rem .7rem; background: #1a2332; border: 1px solid #2a3a4a; border-radius: 4px;
@@ -93,19 +98,21 @@ TEMPLATE = """
 <div class="stats">
   {{ vehicles|length }} vehicle{{ 's' if vehicles|length != 1 }} shown
   &middot; {{ total }} total in DB
-  &middot; {{ gone_count }} gone
-  &middot; {{ rejected_count }} rejected
+  &middot; {{ archived_count }} archived
   {% if last_search %}
   &middot; Last search: {{ last_search.run_at }} &mdash; {{ last_search.total_found|dotfmt }} found, {{ last_search.matches }} matched
   {% endif %}
 </div>
 
-<div class="filters">
-  <a href="?show=active" class="{{ 'active' if show == 'active' }}">Active</a>
-  <a href="?show=new" class="{{ 'active' if show == 'new' }}">New today</a>
-  <a href="?show=gone" class="{{ 'active' if show == 'gone' }}">Gone</a>
-  <a href="?show=rejected" class="{{ 'active' if show == 'rejected' }}">Rejected</a>
-  <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
+<div class="navbar">
+  <div class="filters">
+    <a href="?show=active" class="{{ 'active' if show == 'active' }}">Active</a>
+    <a href="?show=new" class="{{ 'active' if show == 'new' }}">New today</a>
+  </div>
+  <div class="sections">
+    <a href="?show=archived" class="{{ 'active' if show == 'archived' }}">Archived</a>
+    <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
+  </div>
 </div>
 
 <div class="sort-bar">
@@ -290,24 +297,21 @@ def index():
     db = get_db()
     show = request.args.get("show", "active")
 
-    if show == "rejected":
-        where = "WHERE rejected = 1"
+    if show == "archived":
+        where = "WHERE rejected = 1 OR gone = 1"
     elif show == "new":
-        where = "WHERE rejected = 0 AND date(first_seen_at) = date('now')"
-    elif show == "gone":
-        where = "WHERE rejected = 0 AND gone = 1"
+        where = "WHERE rejected = 0 AND gone = 0 AND date(first_seen_at) = date('now')"
     elif show == "all":
         where = ""
     else:
-        where = "WHERE rejected = 0"
+        where = "WHERE rejected = 0 AND gone = 0"
 
     rows = db.execute(
         f"SELECT * FROM vehicles {where} ORDER BY price"
     ).fetchall()
 
     total = db.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]
-    rejected_count = db.execute("SELECT COUNT(*) FROM vehicles WHERE rejected = 1").fetchone()[0]
-    gone_count = db.execute("SELECT COUNT(*) FROM vehicles WHERE gone = 1 AND rejected = 0").fetchone()[0]
+    archived_count = db.execute("SELECT COUNT(*) FROM vehicles WHERE rejected = 1 OR gone = 1").fetchone()[0]
 
     vehicles = []
     for row in rows:
@@ -356,7 +360,7 @@ def index():
         }
 
     return render_template_string(TEMPLATE, vehicles=vehicles, total=total,
-                                  rejected_count=rejected_count, gone_count=gone_count,
+                                  archived_count=archived_count,
                                   show=show, last_search=last_search)
 
 
