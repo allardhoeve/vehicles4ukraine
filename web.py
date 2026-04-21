@@ -100,9 +100,9 @@ TEMPLATE = """
 </div>
 
 <div class="filters">
-  <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
   <a href="?show=open" class="{{ 'active' if show == 'open' }}">Open</a>
   <a href="?show=archived" class="{{ 'active' if show == 'archived' }}">Archived</a>
+  <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
 </div>
 
 <div class="sort-bar">
@@ -285,14 +285,14 @@ def close_db(exc):
 @app.route("/")
 def index():
     db = get_db()
-    show = request.args.get("show", "all")
+    show = request.args.get("show", "open")
 
     if show == "archived":
         where = "WHERE rejected = 1 OR gone = 1"
-    elif show == "open":
-        where = "WHERE rejected = 0 AND gone = 0"
-    else:
+    elif show == "all":
         where = ""
+    else:
+        where = "WHERE rejected = 0 AND gone = 0"
 
     rows = db.execute(
         f"SELECT * FROM vehicles {where} ORDER BY price"
