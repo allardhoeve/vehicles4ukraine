@@ -190,7 +190,10 @@ def parse_vehicles(html: str) -> list[Vehicle]:
 
 # --- Filtering ---
 
-def matches_criteria(v: Vehicle, criteria: dict) -> bool:
+_3DOOR_RE = re.compile(r'3\s*(?:DRS|deurs?|doors?)\b', re.IGNORECASE)
+
+
+def matches_criteria(v: Vehicle, criteria: dict, target: dict | None = None) -> bool:
     max_price = criteria.get("max_price")
     if max_price and v.price is not None and v.price > max_price:
         return False
@@ -199,6 +202,8 @@ def matches_criteria(v: Vehicle, criteria: dict) -> bool:
         return False
     transmission = criteria.get("transmission")
     if transmission and v.transmission != transmission:
+        return False
+    if target and target.get("exclude_3door") and _3DOOR_RE.search(v.title or ""):
         return False
     return True
 
@@ -282,7 +287,7 @@ def main():
             v.priority = priority
             if v.source_url:
                 all_seen_urls.add(v.source_url)
-        matches = [v for v in all_vehicles if matches_criteria(v, criteria)]
+        matches = [v for v in all_vehicles if matches_criteria(v, criteria, target)]
 
         pages_str = f" ({page} pages)" if page > 1 else ""
         print(f"{len(all_vehicles)} found{pages_str}, {len(matches)} match criteria")

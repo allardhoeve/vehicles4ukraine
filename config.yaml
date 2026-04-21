@@ -33,6 +33,7 @@ targets:
     model: pajero
     slug: mitsubishi/pajero
     priority: medium
+    exclude_3door: true
 
   - make: kia
     model: sorento
