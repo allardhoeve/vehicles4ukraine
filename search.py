@@ -18,7 +18,7 @@ from datetime import datetime
 
 import yaml
 
-from db import DB_PATH, Vehicle, init_db, is_rejected, upsert_vehicle
+from db import DB_PATH, Vehicle, init_db, is_rejected, mark_gone, upsert_vehicle
 
 
 # --- Configuration ---
@@ -206,7 +206,8 @@ def matches_criteria(v: Vehicle, criteria: dict) -> bool:
 # --- API push ---
 
 def push_to_api(vehicles: list[Vehicle], api_url: str, api_user: str, api_pass: str,
-                search_runs: list[tuple] | None = None):
+                search_runs: list[tuple] | None = None,
+                all_seen_urls: set[str] | None = None):
     """Push vehicles to the remote web API."""
     import base64
 
@@ -216,6 +217,8 @@ def push_to_api(vehicles: list[Vehicle], api_url: str, api_user: str, api_pass: 
             {"slug": s[0], "total_found": s[1], "matches": s[2], "run_at": s[3]}
             for s in search_runs
         ]
+    if all_seen_urls:
+        data["all_seen_urls"] = list(all_seen_urls)
     payload = json.dumps(data).encode()
     credentials = base64.b64encode(f"{api_user}:{api_pass}".encode()).decode()
 
@@ -248,6 +251,7 @@ def main():
     api_config = config.get("api")
 
     all_matches = []
+    all_seen_urls = set()
     run_stats = []
     run_at = datetime.now().isoformat()
 
@@ -276,6 +280,8 @@ def main():
 
         for v in all_vehicles:
             v.priority = priority
+            if v.source_url:
+                all_seen_urls.add(v.source_url)
         matches = [v for v in all_vehicles if matches_criteria(v, criteria)]
 
         pages_str = f" ({page} pages)" if page > 1 else ""
@@ -292,7 +298,8 @@ def main():
         api_user = api_config.get("user", "v4u")
         api_pass = api_config["pass"]
         print(f"\n  Pushing {len(all_matches)} vehicles to {api_url} ... ", end="", flush=True)
-        result = push_to_api(all_matches, api_url, api_user, api_pass, search_runs=run_stats)
+        result = push_to_api(all_matches, api_url, api_user, api_pass,
+                            search_runs=run_stats, all_seen_urls=all_seen_urls)
         print("done")
         print(f"\n{'='*70}")
         print(f"  {result['received']} received | {result['new']} NEW | "
@@ -316,6 +323,8 @@ def main():
             else:
                 seen_again += 1
 
+        gone_count = mark_gone(conn, all_seen_urls)
+
         for stat in run_stats:
             conn.execute(
                 "INSERT INTO search_runs (slug, total_found, matches, run_at) VALUES (?, ?, ?, ?)",
@@ -327,11 +336,16 @@ def main():
         rejected_count = conn.execute(
             "SELECT COUNT(*) FROM vehicles WHERE rejected = 1"
         ).fetchone()[0]
+        total_gone = conn.execute(
+            "SELECT COUNT(*) FROM vehicles WHERE gone = 1 AND rejected = 0"
+        ).fetchone()[0]
 
         print(f"\n{'='*70}")
         print(f"  {len(all_matches)} matched criteria | {len(new_vehicles)} NEW | "
               f"{len(price_changes)} price changed | {seen_again} seen before")
-        print(f"  DB total: {total_in_db} vehicles ({rejected_count} rejected)")
+        if gone_count:
+            print(f"  {gone_count} newly gone")
+        print(f"  DB total: {total_in_db} vehicles ({rejected_count} rejected, {total_gone} gone)")
         print(f"{'='*70}")
 
         if new_vehicles:

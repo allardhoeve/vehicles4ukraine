@@ -8,7 +8,7 @@ from functools import wraps
 
 from flask import Flask, Response, g, jsonify, redirect, render_template_string, request, url_for
 
-from db import DB_PATH, Vehicle, init_db, is_rejected, upsert_vehicle
+from db import DB_PATH, Vehicle, init_db, is_rejected, mark_gone, upsert_vehicle
 
 API_USER = os.environ.get("V4U_API_USER", "v4u")
 API_PASS = os.environ.get("V4U_API_PASS", "")
@@ -53,6 +53,10 @@ TEMPLATE = """
   .vehicle img { width: 180px; height: 120px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
   .vehicle.new { border-left: 3px solid #4caf50; }
   .vehicle.price-changed { border-left: 3px solid #ff9800; }
+  .vehicle.gone { opacity: 0.45; border-left: 3px solid #666; }
+  .vehicle.gone .info h3 a { color: #888; }
+  .vehicle.gone .meta .price { color: #888; }
+  .gone-tag { background: #3a2a2a; color: #cc6666; padding: .1rem .4rem; border-radius: 3px; font-size: .75rem; font-weight: bold; }
   .info { flex: 1; }
   .info h3 { font-size: 1rem; margin-bottom: .3rem; }
   .info h3 a { color: #5dade2; text-decoration: none; }
@@ -87,6 +91,7 @@ TEMPLATE = """
 <div class="stats">
   {{ vehicles|length }} vehicle{{ 's' if vehicles|length != 1 }} shown
   &middot; {{ total }} total in DB
+  &middot; {{ gone_count }} gone
   &middot; {{ rejected_count }} rejected
   {% if last_search %}
   &middot; Last search: {{ last_search.run_at }} &mdash; {{ last_search.total_found|dotfmt }} found, {{ last_search.matches }} matched
@@ -96,6 +101,7 @@ TEMPLATE = """
 <div class="filters">
   <a href="?show=active" class="{{ 'active' if show == 'active' }}">Active</a>
   <a href="?show=new" class="{{ 'active' if show == 'new' }}">New today</a>
+  <a href="?show=gone" class="{{ 'active' if show == 'gone' }}">Gone</a>
   <a href="?show=rejected" class="{{ 'active' if show == 'rejected' }}">Rejected</a>
   <a href="?show=all" class="{{ 'active' if show == 'all' }}">All</a>
 </div>
@@ -113,7 +119,7 @@ TEMPLATE = """
 
 <div id="vehicle-list">
 {% for v in vehicles %}
-<div class="vehicle {{ 'new' if v.is_new else '' }} {{ 'price-changed' if v.price_changed else '' }}"
+<div class="vehicle {{ 'new' if v.is_new else '' }} {{ 'price-changed' if v.price_changed else '' }} {{ 'gone' if v.gone else '' }}"
      data-price="{{ v.price }}" data-date="{{ v.first_seen }}" data-model="{{ v.make }} {{ v.model }}">
   {% if v.image_url %}
   <a href="{{ v.source_url }}" target="_blank"><img src="{{ v.image_url }}" alt="{{ v.title }}"></a>
@@ -126,6 +132,7 @@ TEMPLATE = """
       <span>{{ v.mileage_km|dotfmt }} km</span>
       <span class="tag">{{ v.fuel }}</span>
       <span class="tag">{{ v.transmission }}</span>
+      {% if v.gone %}<span class="gone-tag">Gone</span>{% endif %}
       {% if v.priority %}<span class="priority priority-{{ v.priority }}">{{ v.priority }}</span>{% endif %}
       {% if v.color %}<span>{{ v.color }}</span>{% endif %}
       {% if v.seller and v.location %}<span>{{ v.seller }}, <a class="location" href="https://www.google.com/maps/dir/?api=1&destination={{ v.location | urlencode }},Netherlands" target="_blank">&#x1F4CD; <span class="loc-name">{{ v.location }}</span></a></span>
@@ -280,6 +287,8 @@ def index():
         where = "WHERE rejected = 1"
     elif show == "new":
         where = "WHERE rejected = 0 AND date(first_seen_at) = date('now')"
+    elif show == "gone":
+        where = "WHERE rejected = 0 AND gone = 1"
     elif show == "all":
         where = ""
     else:
@@ -291,6 +300,7 @@ def index():
 
     total = db.execute("SELECT COUNT(*) FROM vehicles").fetchone()[0]
     rejected_count = db.execute("SELECT COUNT(*) FROM vehicles WHERE rejected = 1").fetchone()[0]
+    gone_count = db.execute("SELECT COUNT(*) FROM vehicles WHERE gone = 1 AND rejected = 0").fetchone()[0]
 
     vehicles = []
     for row in rows:
@@ -317,6 +327,7 @@ def index():
             "priority": row["priority"] if "priority" in row.keys() else None,
             "portals": portals,
             "rejected": row["rejected"],
+            "gone": row["gone"] if "gone" in row.keys() else 0,
             "first_seen": row["first_seen_at"],
             "is_new": row["first_seen_at"][:10] == __import__("datetime").date.today().isoformat(),
             "price_changed": row["price_at_first_seen"] is not None and row["price"] != row["price_at_first_seen"],
@@ -338,8 +349,8 @@ def index():
         }
 
     return render_template_string(TEMPLATE, vehicles=vehicles, total=total,
-                                  rejected_count=rejected_count, show=show,
-                                  last_search=last_search)
+                                  rejected_count=rejected_count, gone_count=gone_count,
+                                  show=show, last_search=last_search)
 
 
 @app.route("/criteria")
@@ -399,6 +410,9 @@ def api_vehicles():
         elif result == "price_changed":
             changed_count += 1
 
+    all_seen_urls = set(data.get("all_seen_urls", []))
+    gone_count = mark_gone(db, all_seen_urls) if all_seen_urls else 0
+
     for sr in data.get("search_runs", []):
         db.execute(
             "INSERT INTO search_runs (slug, total_found, matches, run_at) VALUES (?, ?, ?, ?)",
@@ -411,6 +425,7 @@ def api_vehicles():
         "new": new_count,
         "price_changed": changed_count,
         "skipped_rejected": skipped,
+        "gone": gone_count,
     })
 
 

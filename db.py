@@ -88,10 +88,12 @@ def init_db(db_path: str = DB_PATH) -> sqlite3.Connection:
             run_at TEXT NOT NULL
         )
     """)
-    # Migrate: add priority column if missing
+    # Migrate: add missing columns
     columns = [r[1] for r in conn.execute("PRAGMA table_info(vehicles)").fetchall()]
     if "priority" not in columns:
         conn.execute("ALTER TABLE vehicles ADD COLUMN priority TEXT")
+    if "gone" not in columns:
+        conn.execute("ALTER TABLE vehicles ADD COLUMN gone INTEGER NOT NULL DEFAULT 0")
 
     conn.commit()
     return conn
@@ -127,7 +129,8 @@ def upsert_vehicle(conn: sqlite3.Connection, v: Vehicle) -> str | None:
     old_price = row[0]
     conn.execute(
         """UPDATE vehicles SET
-           price = ?, mileage_km = ?, last_seen_at = ?, image_url = ?, priority = ?, portals = ?
+           price = ?, mileage_km = ?, last_seen_at = ?, image_url = ?, priority = ?, portals = ?,
+           gone = 0
            WHERE source_url = ?""",
         (v.price, v.mileage_km, now, v.image_url, v.priority, json.dumps(v.portals), v.source_url),
     )
@@ -140,6 +143,20 @@ def upsert_vehicle(conn: sqlite3.Connection, v: Vehicle) -> str | None:
         return "price_changed"
 
     return None
+
+
+def mark_gone(conn: sqlite3.Connection, seen_urls: set[str]) -> int:
+    """Mark vehicles not in seen_urls as gone. Returns count of newly gone vehicles."""
+    if not seen_urls:
+        return 0
+    placeholders = ",".join("?" for _ in seen_urls)
+    cursor = conn.execute(
+        f"""UPDATE vehicles SET gone = 1
+            WHERE rejected = 0 AND gone = 0
+            AND source_url NOT IN ({placeholders})""",
+        list(seen_urls),
+    )
+    return cursor.rowcount
 
 
 def is_rejected(conn: sqlite3.Connection, source_url: str) -> bool:
